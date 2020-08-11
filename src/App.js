@@ -1,44 +1,65 @@
 import React, { useState, useEffect } from "react";
+import firebase from "firebase";
 import "./App.css";
-import { Button, FormControl, InputLabel, Input } from "@material-ui/core";
+import {
+  Button,
+  FormControl,
+  InputLabel,
+  Input,
+  Card,
+  CardContent,
+} from "@material-ui/core";
+
+import db from "./firebase";
 
 import Message from "./Message";
 function App() {
   console.log("1");
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState([
-    {
-      name: "kata",
-      text: "hi guy",
-    },
-    {
-      name: "xoss",
-      text: 'What"s up',
-    },
-  ]);
+  const [messages, setMessages] = useState([]);
   const [username, setUsername] = useState("");
 
   const sendMessage = (event) => {
     // all the logicto send
     event.preventDefault();
-    setMessages([...messages, { name: username, text: input }]);
+
+    db.collection("message")
+      .add({
+        username: username,
+        text: input,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      })
+      .then(() => {
+        console.log("Docs successfully written!");
+      })
+      .catch((err) => {
+        console.log("Error writing document: ", err);
+      });
     setInput("");
   };
+
+  const handleType = (event) => setInput(event.target.value);
+
+  useEffect(() => {
+    console.log(2);
+    // run once when app component loads
+    db.collection("message").onSnapshot((snapshot) => {
+      setMessages([
+        ...snapshot.docs
+          .map((doc) => doc.data())
+          .sort((first, second) => {
+            if (!first.timestamp || !second.timestamp) return;
+            return second.timestamp.seconds - first.timestamp.seconds;
+          }),
+      ]);
+    });
+  }, []);
 
   useEffect(() => {
     console.log("setusername");
     setUsername(prompt("enter username"));
   }, []);
 
-  // useEffect(() => {
-  //   console.log("2");
-  //   // effect
-  //   // return () => {
-  //   //   cleanup
-  //   // }
-  // }, [input]);
-
-  console.log(input);
   console.log(messages);
 
   return (
@@ -47,11 +68,7 @@ function App() {
       <form onSubmit={sendMessage}>
         <FormControl>
           <InputLabel>Enter a message...</InputLabel>
-          <Input
-            type="text"
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-          />
+          <Input type="text" value={input} onChange={handleType} />
           <Button
             disabled={!input}
             type="submit"
@@ -64,12 +81,17 @@ function App() {
           </Button>
         </FormControl>
       </form>
-
       {/* all messages here */}
 
-      {messages.map((message, index) => {
-        return <Message key={index} message={message} username={username} />;
-      })}
+      <Card className="messages-container" variant="outlined">
+        <CardContent>
+          {messages.map((message, index) => {
+            return (
+              <Message key={index} message={message} username={username} />
+            );
+          })}
+        </CardContent>
+      </Card>
     </div>
   );
 }
